@@ -34,3 +34,10 @@ config MSM_SLEEPER
  	default n
  	help
  	  CPU hotplug driver
+
+config MAKO_HOTPLUG
+ 	bool "Mako Hotplug"
+ 	default n
+ 	help
+ 	  Mako Hotplug: A custom hotplug by fransico franco
+
