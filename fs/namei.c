@@ -1993,6 +1993,9 @@ static int path_lookupat(int dfd, const char *name,
 	 */
 	err = path_init(dfd, name, flags | LOOKUP_PARENT, nd, &base);
 
+	if (unlikely(err))
+		goto out;
+
 	current->total_link_count = 0;
 	err = link_path_walk(name, nd);
 

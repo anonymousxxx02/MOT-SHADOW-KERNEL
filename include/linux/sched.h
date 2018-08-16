@@ -1995,9 +1995,6 @@ static inline int set_cpus_allowed(struct task_struct *p, cpumask_t new_mask)
 }
 #endif
 
-extern void sched_get_cpus_busy(unsigned long *busy,
-				const struct cpumask *query_cpus);
-
 /*
  * Do not use outside of architecture code which knows its limitations.
  *
