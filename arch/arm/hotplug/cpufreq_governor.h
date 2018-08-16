@@ -108,7 +108,6 @@ static ssize_t store_##file_name##_gov_pol				\
 }
 
 #define show_store_one(_gov, file_name)					\
-show_one(_gov, file_name);						\
 store_one(_gov, file_name)
 
 /* create helper routines */
