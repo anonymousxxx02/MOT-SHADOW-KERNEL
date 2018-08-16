@@ -167,25 +167,6 @@ u64 get_cpu_idle_time(unsigned int cpu, u64 *wall, int io_busy)
 }
 EXPORT_SYMBOL_GPL(get_cpu_idle_time);
 
-static int cpufreq_global_kobject_usage;
-
-int cpufreq_get_global_kobject(void)
-{
-	if (!cpufreq_global_kobject_usage++)
-		return kobject_add(cpufreq_global_kobject,
-				&cpu_subsys.dev_root->kobj, "%s", "cpufreq");
-
-	return 0;
-}
-EXPORT_SYMBOL(cpufreq_get_global_kobject);
-
-void cpufreq_put_global_kobject(void)
-{
-	if (!--cpufreq_global_kobject_usage)
-		kobject_del(cpufreq_global_kobject);
-}
-EXPORT_SYMBOL(cpufreq_put_global_kobject);
-
 /*
  * This is a generic cpufreq init() routine which can be used by cpufreq
  * drivers of SMP systems. It will do following:
@@ -1825,10 +1806,6 @@ int __cpufreq_driver_target(struct cpufreq_policy *policy,
 
 	pr_debug("target for CPU %u: %u kHz, relation %u, requested %u kHz\n",
 			policy->cpu, target_freq, relation, old_target_freq);
-
-
-	if (target_freq == policy->cur)
-		return 0;
 
 	if (cpufreq_driver->target)
 		retval = cpufreq_driver->target(policy, target_freq, relation);
