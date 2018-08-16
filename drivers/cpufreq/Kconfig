@@ -191,14 +191,6 @@ config CPU_FREQ_DEFAULT_GOV_SMARTMAX
  	help
  	  Use the CPUFreq governor 'smartmax' as default
 
-
-config CPU_FREQ_GOV_ADAPTIVE
-	tristate "'adaptive' cpufreq policy governor"
-	---help---
-	  'adaptive' - This driver adds a dynamic cpufreq policy governor
-	  designed for latency-sensitive workloads and also for demanding
-	  performance.
-
 config CPU_FREQ_DEFAULT_GOV_CULTIVATION
 	bool "cultivation"
 	select CPU_FREQ_GOV_CULTIVATION
@@ -206,6 +198,13 @@ config CPU_FREQ_DEFAULT_GOV_CULTIVATION
 	Use the CPUFreq governor 'cultivation' as default.
 
 endchoice
+
+config CPU_FREQ_GOV_ADAPTIVE
+	tristate "'adaptive' cpufreq policy governor"
+	---help---
+	  'adaptive' - This driver adds a dynamic cpufreq policy governor
+	  designed for latency-sensitive workloads and also for demanding
+	  performance.
 
 config CPU_FREQ_GOV_PERFORMANCE
 	tristate "'performance' governor"
@@ -340,16 +339,7 @@ config CPU_FREQ_GOV_INTERACTIVE_PRO
 	tristate "'interactive_pro' cpufreq governor"
 	depends on CPU_FREQ
 
-config CPU_BOOST
-	tristate "Event base short term CPU freq boost"
-	depends on CPU_FREQ
-	help
-	  This driver boosts the frequency of one or more CPUs based on
-	  various events that might occur in the system. As of now, the
-	  events it reacts to are:
-	  - Migration of important threads from one CPU to another.
 
-	  If in doubt, say N.
 
 config CPU_FREQ_GOV_DARKNESS
 	tristate "'darkness' cpufreq policy governor"
@@ -377,6 +367,17 @@ config GENERIC_CPUFREQ_CPU0
 	  This adds a generic cpufreq driver for CPU0 frequency management.
 	  It supports both uniprocessor (UP) and symmetric multiprocessor (SMP)
 	  systems which share clock and voltage across all CPUs.
+
+	  If in doubt, say N.
+
+config CPU_BOOST
+	tristate "Event base short term CPU freq boost"
+	depends on CPU_FREQ
+	help
+	  This driver boosts the frequency of one or more CPUs based on
+	  various events that might occur in the system. As of now, the
+	  events it reacts to are:
+	  - Migration of important threads from one CPU to another.
 
 	  If in doubt, say N.
 
