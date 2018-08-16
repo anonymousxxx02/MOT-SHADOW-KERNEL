@@ -22,7 +22,7 @@
 #include <linux/mutex.h>
 #include <linux/module.h>
 #include <linux/slab.h>
-#include "cpufreq_governor.h"
+#include <linux/cpufreq_governor.h>
 
 #if defined(CONFIG_POWERSUSPEND)
 #include <linux/powersuspend.h>
