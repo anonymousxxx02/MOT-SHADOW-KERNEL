@@ -30,11 +30,6 @@
 #include <linux/tick.h>
 #include <trace/events/power.h>
 
-/* HACK: Prevent big cluster turned off when changing governor settings. */
-#ifdef CONFIG_MSM_HOTPLUG
-#include <linux/workqueue.h>
-#endif
-
 /**
  * The "cpufreq driver" - the arch- or hardware-dependent low
  * level driver of CPUFreq support, and its spinlock. This lock
@@ -44,7 +39,7 @@ static struct cpufreq_driver *cpufreq_driver;
 static DEFINE_PER_CPU(struct cpufreq_policy *, cpufreq_cpu_data);
 static DEFINE_PER_CPU(struct cpufreq_policy *, cpufreq_cpu_data_fallback);
 static DEFINE_RWLOCK(cpufreq_driver_lock);
-DEFINE_MUTEX(cpufreq_governor_lock);
+static DEFINE_MUTEX(cpufreq_governor_lock);
 static LIST_HEAD(cpufreq_policy_list);
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -344,17 +339,6 @@ void cpufreq_notify_transition(struct cpufreq_policy *policy,
 }
 EXPORT_SYMBOL_GPL(cpufreq_notify_transition);
 
-/**
-cpufreq_notify_utilization - notify CPU userspace about CPU utilization change
-This function is called everytime the CPU load is evaluated by the ondemand governor. 
-It notifies userspace of cpu load changes via sysfs.
-*/
-void cpufreq_notify_utilization(struct cpufreq_policy *policy,
- unsigned int util)
-{
- if (policy)
- policy->util = util;
-}
 
 /*********************************************************************
  *                          SYSFS INTERFACE                          *
@@ -405,25 +389,8 @@ static int cpufreq_parse_governor(char *str_governor, unsigned int *policy,
 			ret = request_module("cpufreq_%s", str_governor);
 			mutex_lock(&cpufreq_governor_mutex);
 
-			/*
-			 * At this point, if the governor was found via module
-			 * search, it will load it. However, if it didn't, we
-			 * are just going to exit without doing anything to
-			 * the governor. Most of the time, this is totally
-			 * fine; the one scenario where it's not is when a ROM
-			 * has a boot script that requests a governor that
-			 * exists in the default kernel but not in this one.
-			 * This kernel (and nearly every other Android kernel)
-			 * has the performance governor as default for boot
-			 * performance which is then changed to another,
-			 * usually interactive. So, instead of just exiting if
-			 * the requested governor wasn't found, let's try
-			 * falling back to interactive before falling out.
-			 */
 			if (ret == 0)
 				t = __find_governor(str_governor);
-			else
-				t = __find_governor("interactive");
 		}
 
 		if (t != NULL) {
@@ -452,32 +419,10 @@ static ssize_t show_##file_name				\
 	return sprintf(buf, "%u\n", policy->object);	\
 }
 
-/* HACK: Prevent big cluster turned off when changing governor settings. */
-#ifdef CONFIG_MSM_HOTPLUG
-extern bool prevent_big_off;
-
-static void prevent_big_off_cancel(struct work_struct *prevent_big_off_cancel_work)
-{
-	prevent_big_off = false;
-}
-static DECLARE_DELAYED_WORK(prevent_big_off_cancel_work, prevent_big_off_cancel);
-
-static ssize_t show_scaling_min_freq
-(struct cpufreq_policy *policy, char *buf)
-{
-	prevent_big_off = true;
-	cancel_delayed_work(&prevent_big_off_cancel_work);
-	schedule_delayed_work(&prevent_big_off_cancel_work,
-			msecs_to_jiffies(5000));
-	return sprintf(buf, "%u\n", policy->min);
-}
-#else
-show_one(scaling_min_freq, min);
-#endif
-
 show_one(cpuinfo_min_freq, cpuinfo.min_freq);
 show_one(cpuinfo_max_freq, cpuinfo.max_freq);
 show_one(cpuinfo_transition_latency, cpuinfo.transition_latency);
+show_one(scaling_min_freq, min);
 show_one(scaling_max_freq, max);
 show_one(scaling_cur_freq, cur);
 
@@ -527,11 +472,9 @@ static ssize_t show_cpuinfo_cur_freq(struct cpufreq_policy *policy,
 					char *buf)
 {
 	unsigned int cur_freq = __cpufreq_get(policy->cpu);
-
-	if (cur_freq)
-		return sprintf(buf, "%u\n", cur_freq);
-
-	return sprintf(buf, "<unknown>\n");
+	if (!cur_freq)
+		return sprintf(buf, "<unknown>");
+	return sprintf(buf, "%u\n", cur_freq);
 }
 
 /**
@@ -558,9 +501,6 @@ static ssize_t store_scaling_governor(struct cpufreq_policy *policy,
 	int ret;
 	char	str_governor[16];
 	struct cpufreq_policy new_policy;
-	char *envp[3];
-	char buf1[64];
-	char buf2[64];
 
 	ret = cpufreq_get_policy(&new_policy, policy->cpu);
 	if (ret)
@@ -583,13 +523,6 @@ static ssize_t store_scaling_governor(struct cpufreq_policy *policy,
 	policy->user_policy.governor = policy->governor;
 
 	sysfs_notify(&policy->kobj, NULL, "scaling_governor");
-
-	snprintf(buf1, sizeof(buf1), "GOV=%s", policy->governor->name);
-	snprintf(buf2, sizeof(buf2), "CPU=%u", policy->cpu);
-	envp[0] = buf1;
-	envp[1] = buf2;
-	envp[2] = NULL;
-	kobject_uevent_env(cpufreq_global_kobject, KOBJ_ADD, envp);
 
 	if (ret)
 		return ret;
@@ -1472,20 +1405,6 @@ static void cpufreq_out_of_sync(unsigned int cpu, unsigned int old_freq,
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
 }
 
-unsigned int cpufreq_quick_get_util(unsigned int cpu)
-{
- struct cpufreq_policy *policy = cpufreq_cpu_get(cpu);
- unsigned int ret_util = 0;
-
- if (policy) {
- ret_util = policy->util;
- cpufreq_cpu_put(policy);
- }
-
- return ret_util;
-}
-EXPORT_SYMBOL(cpufreq_quick_get_util);
-
 /**
  * cpufreq_quick_get - get the CPU frequency (in kHz) from policy->cur
  * @cpu: CPU number
@@ -1890,22 +1809,6 @@ EXPORT_SYMBOL_GPL(cpufreq_driver_target);
 /*
  * when "event" is CPUFREQ_GOV_LIMITS
  */
-
-int __cpufreq_driver_getavg(struct cpufreq_policy *policy, unsigned int cpu)
-{
- int ret = 0;
-
- policy = cpufreq_cpu_get(policy->cpu);
- if (!policy)
- return -EINVAL;
-
- if (cpu_online(cpu) && cpufreq_driver->getavg)
- ret = cpufreq_driver->getavg(policy, cpu);
-
- cpufreq_cpu_put(policy);
- return ret;
-}
-EXPORT_SYMBOL_GPL(__cpufreq_driver_getavg);
 
 static int __cpufreq_governor(struct cpufreq_policy *policy,
 					unsigned int event)
